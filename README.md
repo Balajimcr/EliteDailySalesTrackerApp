@@ -1,2 +1,2 @@
-# EliteDailySalesTrackerApp
-Daily Sales Tracker App
+# DailySalesTrackerApp
+Daily Accounts Tracker
