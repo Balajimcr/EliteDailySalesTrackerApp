@@ -131,12 +131,13 @@ def update_salary_data():
             salary_data = pd.concat([salary_data, new_entries_df], ignore_index=True)
 
         try:
-            salary_data.to_csv(employee_salary_data_csv, index=False, encoding="utf-8")
+            salary_data.to_csv(employee_salary_data_csv, index=False)
             st.success("Salary data updated successfully.")
         except Exception as e:
             st.error(f"An error occurred while saving the salary data: {str(e)}")
             return None  # Return None if saving fails
-    
+            
+    salary_data['Month'] = salary_data['Month'].dt.strftime('%b-%Y')
     display_data(salary_data, "Employee Salary")
     
     return salary_data
@@ -206,7 +207,7 @@ def update_employee_salary_csv(Employee_Salary_data, csv_file_path):
     Employee_Salary_data = Employee_Salary_data[required_columns]
 
     # Convert 'Month' to datetime and then to the required string format
-    Employee_Salary_data['Month'] = pd.to_datetime(Employee_Salary_data['Month'],format='%d-%m-%Y', errors='coerce').dt.strftime('%Y-%m-%d')
+    Employee_Salary_data['Month'] = Employee_Salary_data['Month']
 
     # Sort the DataFrame by Month (descending) and then by Employee Name
     Employee_Salary_data = Employee_Salary_data.sort_values(['Month', 'Employee Name'], ascending=[False, True])
@@ -387,7 +388,7 @@ def employee_salary_tab():
         st.error(f"An error occurred while sorting the data: {str(e)}")
         return
     
-    start_month = 'Mar-2024'
+    start_month = 'Aug-2024'
     end_month = datetime.now().strftime('%b-%Y')
 
     adv_bank_transfer_df = pd.read_csv(employee_salary_Advance_bankTransfer_csv, parse_dates=['Date'], dayfirst=True)
