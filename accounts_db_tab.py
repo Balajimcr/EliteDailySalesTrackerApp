@@ -88,7 +88,7 @@ def DownloadFiles():
 
 def display_data(data):
     def highlight_difference(val):
-        color = 'red' if val > 100 else ('green' if val < 100 else 'none')
+        color = 'red' if val > 0 else ('green' if val < 0 else 'none')
         return f'background-color: {color}; color: black;'
 
     styled_data = data.style.applymap(highlight_difference, subset=['Cash Difference'])
