@@ -14,37 +14,50 @@ import os
 # Create a connection object.
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def sync_csv_to_google_sheet(csv_path, sheet_name):
+# Updated the sync_all_csv_files function to include a unique identifier for each file
+
+def sync_csv_to_google_sheet(csv_path, sheet_name, unique_identifier):
     # Read the CSV file
-    df = pd.read_csv(csv_path)
+    df_local = pd.read_csv(csv_path)
 
-    # Clear the existing content in the worksheet
-    conn.clear(worksheet=sheet_name)
+    # Get existing data from Google Sheet
+    df_sheet = conn.read(worksheet=sheet_name)
 
-    # Update the Google Sheet with new data
-    conn.update(worksheet=sheet_name, data=df)
+    # Ensure unique_identifier is in both DataFrames
+    if unique_identifier not in df_local.columns or unique_identifier not in df_sheet.columns:
+        raise ValueError(f"Unique identifier '{unique_identifier}' not found in both local CSV and Google Sheets data.")
 
-    #st.success(f"Successfully synced {csv_path} to Google Sheet: {sheet_name}")
+    # Merge the local data with the existing sheet data based on the unique identifier
+    df_merged = pd.concat([df_sheet, df_local]).drop_duplicates(subset=unique_identifier, keep='last')
 
-# Function to sync all CSV files (updated to use corrected paths)
+    # Update the Google Sheet with the merged data
+    conn.update(worksheet=sheet_name, data=df_merged)
+
+    print(f"Successfully synced new rows from {csv_path} to Google Sheet: {sheet_name}")
+
+
+# Updated sync_all_csv_files function with unique identifiers
 def sync_all_csv_files():
+    csv_files_and_sheets = {
+        'database_collection.csv': {'sheet_name': 'Database', 'unique_identifier': 'Date'},
+        'employee_salary_Advance_bankTransfer_data.csv': {'sheet_name': 'EmployeeSalaryAdvance', 'unique_identifier': 'Date'},
+        'employee_salary_data.csv': {'sheet_name': 'EmployeeSalaryData', 'unique_identifier': 'Month'}
+    }
 
-  csv_files_and_sheets = {
-      'database_collection.csv': 'Database',
-      'employee_salary_Advance_bankTransfer_data.csv': 'EmployeeSalaryAdvance',
-      'employee_salary_data.csv': 'EmployeeSalaryData'
-  }
+    directory = os.path.join(UserDirectoryPath)  # Corrected directory path
 
-  directory = os.path.join(UserDirectoryPath)  # Corrected directory path
+    for csv_file, sheet_info in csv_files_and_sheets.items():
+        csv_path = os.path.join(directory, csv_file)
+        sheet_name = sheet_info['sheet_name']
+        unique_identifier = sheet_info['unique_identifier']
 
-  for csv_file, sheet_name in csv_files_and_sheets.items():
-    csv_path = os.path.join(directory, csv_file)
+        # Check if the file exists
+        if os.path.isfile(csv_path):
+            sync_csv_to_google_sheet(csv_path, sheet_name, unique_identifier)
+        else:
+            print(f"Warning: CSV file '{csv_file}' not found in '{directory}'. Skipping.")
 
-    # Check if the file exists
-    if os.path.isfile(csv_path):
-      sync_csv_to_google_sheet(csv_path, sheet_name)
-    else:
-      print(f"Warning: CSV file '{csv_file}' not found in '{directory}'. Skipping.")
+
 
 def save_data(data):
     # Your logic to save data to CSV

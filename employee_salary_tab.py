@@ -87,6 +87,8 @@ def update_salary_data():
 
     # Create a list to collect updated salary data
     updates = []
+    
+    salary_data['Month'] = salary_data['Month'].dt.strftime('%b-%Y')
 
     for employee in salary_data['Employee Name'].unique():
         # Filter data for the selected month and employee
@@ -136,8 +138,7 @@ def update_salary_data():
         except Exception as e:
             st.error(f"An error occurred while saving the salary data: {str(e)}")
             return None  # Return None if saving fails
-            
-    salary_data['Month'] = salary_data['Month'].dt.strftime('%b-%Y')
+    
     display_data(salary_data, "Employee Salary")
     
     return salary_data
@@ -207,7 +208,7 @@ def update_employee_salary_csv(Employee_Salary_data, csv_file_path):
     Employee_Salary_data = Employee_Salary_data[required_columns]
 
     # Convert 'Month' to datetime and then to the required string format
-    Employee_Salary_data['Month'] = Employee_Salary_data['Month']
+    Employee_Salary_data['Month'] = pd.to_datetime(Employee_Salary_data['Month'],format='%b-%Y', errors='coerce').dt.strftime('%b-%Y')
 
     # Sort the DataFrame by Month (descending) and then by Employee Name
     Employee_Salary_data = Employee_Salary_data.sort_values(['Month', 'Employee Name'], ascending=[False, True])
@@ -218,7 +219,7 @@ def update_employee_salary_csv(Employee_Salary_data, csv_file_path):
     if st.button("Update CSV File"):
         try:
             # Save the DataFrame to CSV
-            Employee_Salary_data.to_csv(csv_file_path, index=False, encoding="utf-8")
+            Employee_Salary_data.to_csv(csv_file_path)
             st.success(f"CSV file updated successfully at {csv_file_path}")
         except Exception as e:
             st.error(f"An error occurred while saving the CSV file: {str(e)}")
@@ -251,7 +252,7 @@ def calculate_financials(month, employee, financial_summary, employee_salary_dat
     monthly_bank_transfers = financials['Monthly Bank Transfers'].sum()
     total_salary_advance = financials['Total Salary Advance'].sum()
     monthly_sales = salary_info['Total Sales'].sum()
-    salary = monthly_sales / 2  # Assuming salary is half of the sales
+    salary = salary_info['Salary'].sum()
     
     # Get the previous balance if it exists, otherwise start from 0
     previous_balance = previous_balances.get(f"{month}-{employee}", 0)
