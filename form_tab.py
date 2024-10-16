@@ -53,7 +53,7 @@ def form_tab():
         cleaning = st.number_input(Text("Cleaning"), value=st.session_state.get('cleaning', 0), min_value=0, step=100)
 
        # Unified list of other expenses options
-        other_expenses_options = ["Tea or Snacks ( டீ )", "Others (வேறு செலவு)", "Flower ( பூ )", "Corporation ( கார்பொரேஷன் )", "Paper ( பேப்பர் )"]
+        other_expenses_options = ["Tea or Snacks", "Others", "Flower", "Corporation", "Paper"]
 
         # Initialize a list to collect the amounts of other expenses
         other_expenses_names = []
