@@ -13,20 +13,12 @@ import os
 
 # Create a connection object.
 conn = st.connection("gsheets", type=GSheetsConnection)
-
-def sync_csv_to_google_sheet(csv_path, sheet_name, unique_identifier):
-    # Read the CSV file
+def sync_csv_to_google_sheet(csv_path, sheet_name):
+    # Read the entire CSV file
     df_local = pd.read_csv(csv_path)
-
-    # Get only the last 10 rows from the CSV
-    df_local = df_local.tail(10)
 
     # Get existing data from Google Sheet
     df_sheet = conn.read(worksheet=sheet_name)
-
-    # Ensure unique_identifier is in both DataFrames
-    if unique_identifier not in df_local.columns or unique_identifier not in df_sheet.columns:
-        raise ValueError(f"Unique identifier '{unique_identifier}' not found in both local CSV and Google Sheets data.")
 
     # Use the columns from the local CSV as expected columns
     expected_columns = df_local.columns.tolist()
@@ -42,8 +34,16 @@ def sync_csv_to_google_sheet(csv_path, sheet_name, unique_identifier):
     df_local = df_local[common_columns]
     df_sheet = df_sheet[common_columns]
 
-    # Find new rows based on the unique identifier
-    new_rows = df_local[~df_local[unique_identifier].isin(df_sheet[unique_identifier])]
+    # Filter the Google Sheet DataFrame to retain only the expected columns
+    df_sheet = df_sheet[expected_columns].loc[:, expected_columns].copy()
+
+    # Align columns by selecting only common columns between the CSV and Google Sheet
+    common_columns = df_local.columns.intersection(df_sheet.columns)
+    df_local = df_local[common_columns]
+    df_sheet = df_sheet[common_columns]
+
+    # Find new rows by checking for duplicates
+    new_rows = df_local[~df_local.apply(tuple, 1).isin(df_sheet.apply(tuple, 1))]
 
     # Check if there are new rows to update
     if not new_rows.empty:
@@ -71,7 +71,7 @@ def sync_all_csv_files():
 
         # Check if the file exists
         if os.path.isfile(csv_path):
-            sync_csv_to_google_sheet(csv_path, sheet_name, unique_identifier)
+            sync_csv_to_google_sheet(csv_path, sheet_name)
         else:
             print(f"Warning: CSV file '{csv_file}' not found in '{directory}'. Skipping.")
 
