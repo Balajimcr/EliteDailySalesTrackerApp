@@ -13,10 +13,35 @@ import os
 
 # Create a connection object.
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+def remove_duplicate_dates(csv_file):
+    df = pd.read_csv(csv_file)
+    
+    #select only last 10 entries from csv file
+    df = df.tail(10)
+    
+    # Convert all column names in df_sheet to strings to prevent type mismatch
+    df.columns = df.columns.astype(str)
+    
+    # Sort the DataFrame by the 'Date' column in descending order
+    df.sort_values('Date', ascending=False, inplace=True)
+    
+    # Remove duplicate rows based on the 'Date' column, keeping the last occurrence
+    df.drop_duplicates(subset='Date', keep='last', inplace=True)
+    
+    print(f"Removed duplicate date entries from {csv_file}")
+    
+    return df
+
 def sync_csv_to_google_sheet(csv_path, sheet_name):
+    
     # Read the entire CSV file
     df_local = pd.read_csv(csv_path)
-
+    
+    #filter out duplicates from the database.csv
+    if csv_file == "database_collection.csv":
+        df_local = remove_duplicate_dates(csv_file)
+       
     # Get existing data from Google Sheet
     df_sheet = conn.read(worksheet=sheet_name)
 
@@ -34,25 +59,16 @@ def sync_csv_to_google_sheet(csv_path, sheet_name):
     df_local = df_local[common_columns]
     df_sheet = df_sheet[common_columns]
 
-    # Filter the Google Sheet DataFrame to retain only the expected columns
-    df_sheet = df_sheet[expected_columns].loc[:, expected_columns].copy()
+    # Remove rows from df_local that already exist in df_sheet based on comparing complete rows
+    df_local = df_local[~df_local.apply(tuple, 1).isin(df_sheet.apply(tuple, 1))]
 
-    # Align columns by selecting only common columns between the CSV and Google Sheet
-    common_columns = df_local.columns.intersection(df_sheet.columns)
-    df_local = df_local[common_columns]
-    df_sheet = df_sheet[common_columns]
+    # Concatenate the new unique rows from df_local to df_sheet
+    updated_data = pd.concat([df_sheet, df_local], ignore_index=True)
 
-    # Find new rows by checking for duplicates
-    new_rows = df_local[~df_local.apply(tuple, 1).isin(df_sheet.apply(tuple, 1))]
+    # Update the Google Sheet with the combined data
+    conn.update(worksheet=sheet_name, data=updated_data)
+    print(f"Successfully added new unique rows from {csv_path} to Google Sheet: {sheet_name}")
 
-    # Check if there are new rows to update
-    if not new_rows.empty:
-        # Append only new rows to the Google Sheet data
-        updated_data = pd.concat([df_sheet, new_rows], ignore_index=True)
-        conn.update(worksheet=sheet_name, data=updated_data)
-        print(f"Successfully synced new rows from {csv_path} to Google Sheet: {sheet_name}")
-    else:
-        print(f"No new rows to add from {csv_path} to Google Sheet: {sheet_name}")
 
 # Updated sync_all_csv_files function with unique identifiers
 def sync_all_csv_files():
