@@ -38,8 +38,10 @@ def login():
     if login_button and pin_no:
         pin_no_hash = hashlib.sha256(pin_no.encode()).hexdigest()
         if pin_no_hash == USER_DATA['Pin_No']:  # Corrected the key here
-            set_logged_in(True)
+            set_logged_in(True)            
+            sync_google_sheets_to_all_csv_files()
             st.success("Login successful!")
+            st.success("Sync successful!")
             return True
         else:
             st.error("Invalid PIN. Please try again.")

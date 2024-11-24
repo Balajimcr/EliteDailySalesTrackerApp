@@ -14,33 +14,47 @@ import os
 # Create a connection object.
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def remove_duplicate_dates(csv_file):
-    df = pd.read_csv(csv_file)
+def sync_google_sheet_to_csv(sheet_name, csv_path):
+    # Get existing data from Google Sheet
+    df_sheet = conn.read(worksheet=sheet_name)
     
-    #select only last 10 entries from csv file
-    df = df.tail(10)
+    # Convert all column names to strings to prevent type mismatch
+    df_sheet.columns = df_sheet.columns.astype(str)
     
-    # Convert all column names in df_sheet to strings to prevent type mismatch
-    df.columns = df.columns.astype(str)
+    # Read the existing data from the local CSV file, if it exists
+    try:
+        df_local = pd.read_csv(csv_path)
+    except FileNotFoundError:
+        # Initialize an empty DataFrame if CSV file does not exist
+        df_local = pd.DataFrame(columns=df_sheet.columns)
+
+    # Use the columns from the Google Sheet as expected columns
+    expected_columns = df_sheet.columns.tolist()
+
+    # Ensure both DataFrames have the same columns
+    df_local = df_local[expected_columns].reindex(columns=expected_columns, fill_value=None)
     
-    # Sort the DataFrame by the 'Date' column in descending order
-    df.sort_values('Date', ascending=False, inplace=True)
-    
-    # Remove duplicate rows based on the 'Date' column, keeping the last occurrence
-    df.drop_duplicates(subset='Date', keep='last', inplace=True)
-    
-    print(f"Removed duplicate date entries from {csv_file}")
-    
-    return df
+    # Align columns by selecting only common columns between the CSV and Google Sheet
+    common_columns = df_local.columns.intersection(df_sheet.columns)
+    df_local = df_local[common_columns]
+    df_sheet = df_sheet[common_columns]
+
+    # Remove rows from df_sheet that already exist in df_local based on comparing complete rows
+    df_sheet = df_sheet[~df_sheet.apply(tuple, 1).isin(df_local.apply(tuple, 1))]
+
+    # Concatenate the new unique rows from df_sheet to df_local
+    updated_data = pd.concat([df_local, df_sheet], ignore_index=True)
+
+    # Save the updated data back to the local CSV file
+    updated_data.to_csv(csv_path, index=False)
+    print(f"Successfully synced new unique rows from Google Sheet: {sheet_name} to local CSV: {csv_path}")
+    #sync_google_sheet_to_csv(sheet_name,csv_file)
+    st.success("Data synchronized successfully from Google Sheets!")
 
 def sync_csv_to_google_sheet(csv_path, sheet_name):
     
     # Read the entire CSV file
-    df_local = pd.read_csv(csv_path)
-    
-    #filter out duplicates from the database.csv
-    if csv_file == "database_collection.csv":
-        df_local = remove_duplicate_dates(csv_file)
+    df_local = pd.read_csv(csv_path)      
        
     # Get existing data from Google Sheet
     df_sheet = conn.read(worksheet=sheet_name)
@@ -92,6 +106,55 @@ def sync_all_csv_files():
             print(f"Warning: CSV file '{csv_file}' not found in '{directory}'. Skipping.")
 
 # Since I can't actually access files or Google Sheets here, this is just for illustrative purposes
+def sync_google_sheets_to_all_csv_files():
+    csv_files_and_sheets = {
+        'database_collection.csv': {'sheet_name': 'Database', 'unique_identifier': 'Date'},
+        'employee_salary_Advance_bankTransfer_data.csv': {'sheet_name': 'EmployeeSalaryAdvance', 'unique_identifier': 'Date'},
+        'employee_salary_data.csv': {'sheet_name': 'EmployeeSalaryData', 'unique_identifier': 'Month'}
+    }
+
+    directory = os.path.join(UserDirectoryPath)  # Ensure correct directory path
+
+    for csv_file, sheet_info in csv_files_and_sheets.items():
+        csv_path = os.path.join(directory, csv_file)
+        sheet_name = sheet_info['sheet_name']
+        unique_identifier = sheet_info['unique_identifier']
+
+        try:
+            # Get data from Google Sheet
+            df_sheet = conn.read(worksheet=sheet_name)
+            df_sheet.columns = df_sheet.columns.astype(str)
+
+            # Read local CSV data if the file exists
+            if os.path.isfile(csv_path):
+                df_local = pd.read_csv(csv_path)
+            else:
+                # Initialize an empty DataFrame with Google Sheet's columns
+                df_local = pd.DataFrame(columns=df_sheet.columns)
+
+            # Align columns between the CSV and Google Sheet
+            expected_columns = df_sheet.columns.tolist()
+            df_local = df_local[expected_columns].reindex(columns=expected_columns, fill_value=None)
+
+            # Remove rows from Google Sheet that already exist in local CSV by comparing all columns
+            df_sheet = df_sheet[~df_sheet.apply(tuple, 1).isin(df_local.apply(tuple, 1))]
+
+            # Concatenate new unique rows from Google Sheet to local CSV
+            updated_data = pd.concat([df_local, df_sheet], ignore_index=True)
+            
+            # Convert all numeric columns to integers
+            for col in updated_data.columns:
+                if pd.api.types.is_numeric_dtype(updated_data[col]):
+                    # Fill NaN values with 0 before conversion
+                    updated_data[col] = updated_data[col].fillna(0).astype(int)
+
+            # Save updated data back to the local CSV
+            updated_data.to_csv(csv_path, index=False)
+            print(f"Successfully synced Google Sheet '{sheet_name}' to local CSV '{csv_file}'.")
+            st.success("Data synchronized successfully from Google Sheets!")
+
+        except Exception as e:
+            print(f"Error syncing Google Sheet '{sheet_name}' to local CSV '{csv_file}': {e}")
 
 
 def save_data(data):
@@ -133,6 +196,10 @@ def DownloadFiles():
         df = pd.read_csv(file_path)
         tmp_download_link = download_link(df, file_to_download, 'Click here to download your CSV!')
         st.markdown(tmp_download_link, unsafe_allow_html=True)
+    
+    if st.button('Sync Google Sheet'):
+        sync_google_sheets_to_all_csv_files()
+        
 
 def display_data(data):
     def highlight_difference(val):
