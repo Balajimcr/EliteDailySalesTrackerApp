@@ -3,6 +3,7 @@ import streamlit as st
 import hashlib
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from data_management import UserDirectoryPath
+from accounts_db_tab import sync_google_sheets_to_all_csv_files
 
 # Simulated user database with hashed passwords
 USER_DATA = {
@@ -53,7 +54,9 @@ def login():
             hashed_password = hashlib.sha256(password.encode()).hexdigest()
             if USER_DATA[username] == hashed_password:
                 set_logged_in(True)
-                st.success("Login successful!")
+                st.success("Login successful!")                
+                sync_google_sheets_to_all_csv_files()
+                st.success("Sync successful!")
                 return True
             else:
                 st.error("Invalid password. Please try again.")
