@@ -54,18 +54,22 @@ def sync_google_sheet_to_csv(sheet_name, csv_path):
 def sync_csv_to_google_sheet(csv_path, sheet_name):
     
     # Read the entire CSV file
-    df_local = pd.read_csv(csv_path)      
-       
+    df_local = pd.read_csv(csv_path)
+    
+    # Ensure 'Date' is in %d-%b-%y format
+    if 'Date' in df_local.columns:
+        df_local['Date'] = pd.to_datetime(df_local['Date'], errors='coerce').dt.strftime('%d-%b-%y')
+    
     # Get existing data from Google Sheet
     df_sheet = conn.read(worksheet=sheet_name)
+    df_sheet.columns = df_sheet.columns.astype(str)
+
+    # Ensure 'Date' in Google Sheet is also %d-%b-%y
+    if 'Date' in df_sheet.columns:
+        df_sheet['Date'] = pd.to_datetime(df_sheet['Date'], errors='coerce').dt.strftime('%d-%b-%y')
 
     # Use the columns from the local CSV as expected columns
     expected_columns = df_local.columns.tolist()
-
-    # Convert all column names in df_sheet to strings to prevent type mismatch
-    df_sheet.columns = df_sheet.columns.astype(str)
-
-    # Filter the Google Sheet DataFrame to retain only the expected columns
     df_sheet = df_sheet[expected_columns].loc[:, expected_columns].copy()
 
     # Align columns by selecting only common columns between the CSV and Google Sheet
@@ -89,7 +93,8 @@ def sync_all_csv_files():
     csv_files_and_sheets = {
         'database_collection.csv': {'sheet_name': 'Database', 'unique_identifier': 'Date'},
         'employee_salary_Advance_bankTransfer_data.csv': {'sheet_name': 'EmployeeSalaryAdvance', 'unique_identifier': 'Date'},
-        'employee_salary_data.csv': {'sheet_name': 'EmployeeSalaryData', 'unique_identifier': 'Month'}
+        'employee_salary_data.csv': {'sheet_name': 'EmployeeSalaryData', 'unique_identifier': 'Month'},
+        'employee_salary.csv': {'sheet_name': 'EmployeeSalary', 'unique_identifier': 'Month'}
     }
 
     directory = os.path.join(UserDirectoryPath)  # Corrected directory path
@@ -105,7 +110,6 @@ def sync_all_csv_files():
         else:
             print(f"Warning: CSV file '{csv_file}' not found in '{directory}'. Skipping.")
 
-# Since I can't actually access files or Google Sheets here, this is just for illustrative purposes
 def sync_google_sheets_to_all_csv_files():
     csv_files_and_sheets = {
         'database_collection.csv': {'sheet_name': 'Database', 'unique_identifier': 'Date'},
@@ -121,17 +125,29 @@ def sync_google_sheets_to_all_csv_files():
         unique_identifier = sheet_info['unique_identifier']
 
         try:
-            # Get data from Google Sheet
             df_sheet = conn.read(worksheet=sheet_name)
+            # Standardize column names: remove spaces and convert to title case
             df_sheet.columns = df_sheet.columns.astype(str)
 
-            # Convert all numeric columns to integers
+            # Process numeric columns
             for col in df_sheet.columns:
                 if pd.api.types.is_numeric_dtype(df_sheet[col]):
-                    # Fill NaN values with 0 before conversion
                     df_sheet[col] = df_sheet[col].fillna(0).astype(int)
 
-            # Save the entire data from Google Sheet to the local CSV
+            # Format the 'Date' column if it exists
+            if 'Date' in df_sheet.columns:
+                try:
+                    df_sheet['Date'] = pd.to_datetime(df_sheet['Date']).dt.strftime('%d-%b-%y')
+                except (ValueError, TypeError):
+                    print(f"Warning: 'Date' column in '{sheet_name}' is not in a recognized date format. Skipping date formatting.")
+
+            # Format the 'Month' column if it exists
+            if 'Month' in df_sheet.columns:
+                try:
+                    df_sheet['Month'] = pd.to_datetime(df_sheet['Month']).dt.strftime('%b-%y')
+                except (ValueError, TypeError):
+                    print(f"Warning: 'Month' column in '{sheet_name}' is not in a recognized date format. Skipping month formatting.")
+
             df_sheet.to_csv(csv_path, index=False)
             print(f"Successfully replaced local CSV '{csv_file}' with data from Google Sheet '{sheet_name}'.")
             st.success(f"Local CSV '{csv_file}' updated with data from Google Sheet '{sheet_name}'!")
@@ -227,7 +243,7 @@ def display_last_entry(data,index, employees):
         data["Closing Cash"] = pd.to_numeric(data["Closing Cash"], errors='coerce', downcast="integer")
         
         top_entry = data.iloc[index]
-        top_entry['Date'] = pd.to_datetime(top_entry['Date'], dayfirst=True).strftime('%d-%b-%Y (%A)')
+        top_entry['Date'] = pd.to_datetime(top_entry['Date'], dayfirst=True).strftime('%d-%b-%y (%A)')
         
         employees = [employeeName.split("-")[0].strip() for employeeName in employees]
 
@@ -281,7 +297,7 @@ def display_last_entry(data,index, employees):
 
     
 def accounts_db_tab():
-    st.title("Elite Unisex Salon Daily Accounts Database")
+    st.title("Elite Salon Manachanallur")
 
     try:
         data, last_closing_cash = load_data()
@@ -297,7 +313,7 @@ def accounts_db_tab():
         if 'Date' in data.columns:
             data['Date'] = pd.to_datetime(data['Date'])
             data = data.sort_values(by='Date', ascending=False)  # Sort by date in ascending order
-            data['Date'] = data['Date'].dt.strftime('%d-%m-%Y')  # Format the date for display after sorting
+            data['Date'] = data['Date'].dt.strftime('%d-%b-%y')  # Format the date for display after sorting
 
         expected_columns = ["Date", "Opening Cash", "Closing Cash", "Cash Difference", "Total Sales POS", "Paytm", "Total Cash", "Denomination Total", "Cash Withdrawn"]
         

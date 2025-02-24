@@ -9,6 +9,7 @@ csv_file = UserDirectoryPath +"database_collection.csv"
 employee_csv = UserDirectoryPath +"Employee_data.csv"
 employee_salary_Advance_bankTransfer_csv = UserDirectoryPath +"employee_salary_Advance_bankTransfer_data.csv"
 employee_salary_data_csv = UserDirectoryPath +"employee_salary_data.csv"
+employee_salary_csv = UserDirectoryPath +"employee_salary.csv"
 credentials_path = "/.streamlit/secrets.toml"
 
 def load_employee_names():
@@ -17,11 +18,12 @@ def load_employee_names():
         employee_names = employee_data["Name"].tolist()
     except (FileNotFoundError, IndexError):
         st.error("Employee names file not found! Please ensure the file exists.")
-        employee_names = ["Kamal","Gopal","Arumugam","Employee 4"]
+        employee_names = ["Kamal","Shakthivel","Employee 3","Employee 4"]
     return employee_names
 
+
 def load_data():
-    try:
+    try:                
         data = pd.read_csv(csv_file, parse_dates=['Date'], dayfirst=True)
         data['Date'] = pd.to_datetime(data['Date'], errors='coerce', dayfirst=True)
         

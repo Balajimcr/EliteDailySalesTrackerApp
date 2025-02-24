@@ -6,7 +6,7 @@ import os
 import datetime
 from datetime import date, datetime, timedelta
 from ui_helpers import displayhtml_data
-from data_management import csv_file, employee_csv, employee_salary_Advance_bankTransfer_csv,employee_salary_data_csv
+from data_management import csv_file, employee_csv, employee_salary_Advance_bankTransfer_csv,employee_salary_data_csv,employee_salary_csv
 
 
 def display_data(dataframe, title):
@@ -28,47 +28,22 @@ def save_data_to_csv(new_data, file_name=employee_salary_Advance_bankTransfer_cs
     return pd.read_csv(file_name, parse_dates=['Date'], dayfirst=True)  # Return updated data
 
 def load_salary_data():
+    """Load salary data from CSV, handling potential errors."""
     if not os.path.exists(employee_salary_data_csv):
         st.error("Salary data file is missing. Please ensure it exists in the correct location.")
         return None
-
     try:
-        salary_data = pd.read_csv(employee_salary_data_csv, parse_dates=['Month'], dayfirst=True)
+        # Explicitly parse the 'Month' column as dates
+        salary_data = pd.read_csv(employee_salary_data_csv, parse_dates=['Month'])
+        # Ensure date format is correct
+        salary_data['Month'] = pd.to_datetime(salary_data['Month'], format='%b-%y')
+        return salary_data.sort_values('Month', ascending=False)
     except FileNotFoundError:
         st.error("Salary data file is missing. Please ensure it exists in the correct location.")
         return None
     except Exception as e:
         st.error(f"An error occurred while loading the salary data: {str(e)}")
         return None
-
-    current_month = datetime.now().replace(day=1)
-
-    # if current_month not in salary_data['Month'].unique():
-    #     new_month_data = []
-    #     for employee in salary_data['Employee Name'].unique():
-    #         new_month_data.append({
-    #             'Month': current_month,
-    #             'Employee Name': employee,
-    #             'Monthly Bank Transfers': 0,
-    #             'Monthly Cash Withdrawn': 0,
-    #             'Total Salary Advance': 0,
-    #             'Total Sales': 0,
-    #             'Salary': 0,
-    #             'Balance': 0,
-    #             'Balance Till date': 0
-    #         })
-    #     new_month_df = pd.DataFrame(new_month_data)
-    #     salary_data = pd.concat([salary_data, new_month_df], ignore_index=True)
-
-    #     try:
-    #         salary_data.to_csv(employee_salary_data_csv)
-    #     except Exception as e:
-    #         st.error(f"An error occurred while saving the salary data: {str(e)}")
-    #         return None
-
-    salary_data = salary_data.sort_values('Month', ascending=False)
-
-    return salary_data
 
 def update_salary_data():
     salary_data = load_salary_data()
@@ -79,16 +54,16 @@ def update_salary_data():
     st.write("### Update Employee Salary")
 
     # Format 'Month' for display and use in selection
-    months = salary_data['Month'].dt.strftime('%b-%Y').unique()
+    months = salary_data['Month'].dt.strftime('%b-%y').unique()
     selected_month = st.selectbox("Select Month", options=months)
 
     # Convert selected month back to datetime for comparison
-    selected_month_datetime = pd.to_datetime(selected_month, format='%b-%Y')
+    selected_month_datetime = pd.to_datetime(selected_month, format='%b-%y')
 
     # Create a list to collect updated salary data
     updates = []
     
-    salary_data['Month'] = salary_data['Month'].dt.strftime('%b-%Y')
+    salary_data['Month'] = salary_data['Month'].dt.strftime('%b-%y')
 
     for employee in salary_data['Employee Name'].unique():
         # Filter data for the selected month and employee
@@ -155,7 +130,7 @@ def aggregate_financials(bank_transfer_df, cash_withdrawn_df):
 
     # Group and resample bank transfer data by month
     monthly_bank_transfers = bank_transfer_df.groupby(['Employee', pd.Grouper(key='Date', freq='M')]).sum().reset_index()
-    monthly_bank_transfers['Month'] = monthly_bank_transfers['Date'].dt.strftime('%b-%Y')
+    monthly_bank_transfers['Month'] = monthly_bank_transfers['Date'].dt.strftime('%b-%y')
     monthly_bank_transfers.rename(columns={'Amount': 'Monthly Bank Transfers', 'Employee': 'Employee Name'}, inplace=True)
     monthly_bank_transfers.drop(columns=['Date','Comments'], inplace=True, errors='ignore')
 
@@ -165,7 +140,7 @@ def aggregate_financials(bank_transfer_df, cash_withdrawn_df):
     
     # Aggregate the melted data by month and employee for the 'Amount' column only
     monthly_cash_withdrawn = melted_cash_withdrawn.groupby(['Month', 'Employee Name']).agg({'Amount': 'sum'}).reset_index()
-    monthly_cash_withdrawn['Month'] = monthly_cash_withdrawn['Month'].dt.strftime('%b-%Y')
+    monthly_cash_withdrawn['Month'] = monthly_cash_withdrawn['Month'].dt.strftime('%b-%y')
     monthly_cash_withdrawn.rename(columns={'Amount': 'Monthly Cash Withdrawn'}, inplace=True)
 
     # Merge the DataFrames on 'Month' and 'Employee Name'
@@ -207,22 +182,30 @@ def update_employee_salary_csv(Employee_Salary_data, csv_file_path):
     # Reorder columns to match the required format
     Employee_Salary_data = Employee_Salary_data[required_columns]
 
-    # Convert 'Month' to datetime and then to the required string format
-    Employee_Salary_data['Month'] = pd.to_datetime(Employee_Salary_data['Month'],format='%b-%Y', errors='coerce').dt.strftime('%b-%Y')
+    # Convert 'Month' to datetime for proper chronological sorting
+    Employee_Salary_data['Month_dt'] = pd.to_datetime(Employee_Salary_data['Month'], format='%b-%y', errors='coerce')
 
-    # Sort the DataFrame by Month (descending) and then by Employee Name
-    Employee_Salary_data = Employee_Salary_data.sort_values(['Month', 'Employee Name'], ascending=[False, True])
+    # Sort by 'Month_dt' (ascending) and then 'Employee Name'
+    Employee_Salary_data = Employee_Salary_data.sort_values(['Month_dt'], ascending=[True])
+
+    # Convert 'Month' back to string format 'Mmm-YY' for display and saving
+    Employee_Salary_data['Month'] = Employee_Salary_data['Month_dt'].dt.strftime('%b-%y')    
+    
+    # Drop the temporary datetime column
+    Employee_Salary_data = Employee_Salary_data.drop(columns=['Month_dt'])
+    
+    # Compute 'Total Sales' based on 'Salary' (Total Sales = Salary / 0.45) and convert to integer
+    Employee_Salary_data['Total Sales'] = (Employee_Salary_data['Salary'] / 0.45).round().astype(int)
 
     # Display the data that will be saved
     st.dataframe(Employee_Salary_data)
-
-    if st.button("Update CSV File"):
-        try:
-            # Save the DataFrame to CSV
-            Employee_Salary_data.to_csv(csv_file_path)
-            st.success(f"CSV file updated successfully at {csv_file_path}")
-        except Exception as e:
-            st.error(f"An error occurred while saving the CSV file: {str(e)}")
+    
+    # Save to CSV without index
+    try:
+        Employee_Salary_data.to_csv(employee_salary_csv, index=False)
+        st.success(f"Data successfully saved to {employee_salary_csv}")
+    except Exception as e:
+        st.error(f"An error occurred while saving the data: {str(e)}")
 
     return Employee_Salary_data
 
@@ -262,7 +245,7 @@ def calculate_financials(month, employee, financial_summary, employee_salary_dat
     balance_till_date = previous_balance + balance
 
     # Update the previous balances dictionary for the next month
-    next_month = (pd.to_datetime(month, format='%b-%Y') + pd.DateOffset(months=1)).strftime('%b-%Y')
+    next_month = (pd.to_datetime(month, format='%b-%y') + pd.DateOffset(months=1)).strftime('%b-%y')
     previous_balances[f"{next_month}-{employee}"] = balance_till_date
 
     return {
@@ -282,8 +265,8 @@ def update_financial_records_over_time(start_month, end_month, employees, financ
     Update financial records over a specified range of months for all employees.
 
     Args:
-    - start_month (str): Start month in 'Mon-YYYY' format.
-    - end_month (str): End month in 'Mon-YYYY' format.
+    - start_month (str): Start month in 'Mon-YY' format.
+    - end_month (str): End month in 'Mon-YY' format.
     - employees (list): List of employee names.
     - financial_summary (pd.DataFrame): DataFrame containing financial summaries.
     - employee_salary_data (pd.DataFrame): DataFrame containing employee salary data.
@@ -291,7 +274,11 @@ def update_financial_records_over_time(start_month, end_month, employees, financ
     Returns:
     - pd.DataFrame: DataFrame with computed financial details over the specified months.
     """
-    month_range = pd.date_range(start=start_month, end=end_month, freq='MS').strftime('%b-%Y')
+    # Parse start and end months explicitly with %b-%y
+    start_dt = pd.to_datetime(start_month, format='%b-%y')
+    end_dt = pd.to_datetime(end_month, format='%b-%y')
+    
+    month_range = pd.date_range(start=start_dt, end=end_dt, freq='MS').strftime('%b-%y')
     results = []
     previous_balances = {}
 
@@ -336,7 +323,7 @@ def employee_salary_tab():
         return
 
     if 'Date' in employee_sa_cash_withdrawn.columns:
-        employee_sa_cash_withdrawn['Date'] = pd.to_datetime(employee_sa_cash_withdrawn['Date']).dt.strftime('%d-%m-%Y')
+        employee_sa_cash_withdrawn['Date'] = pd.to_datetime(employee_sa_cash_withdrawn['Date']).dt.strftime('%d-%b-%y')
         employee_sa_cash_withdrawn = employee_sa_cash_withdrawn.sort_values(by='Date', ascending=False)
         
     # User Inputs
@@ -347,7 +334,7 @@ def employee_salary_tab():
 
     if st.button("Save Entry"):
         new_entry = {
-            "Date": input_date.strftime('%d-%m-%Y'),
+            "Date": input_date.strftime('%d-%b-%y'),
             "Amount": input_amount,
             "Employee": input_employee,
             "Comments": input_comments
@@ -356,9 +343,9 @@ def employee_salary_tab():
     
     if os.path.isfile(employee_salary_Advance_bankTransfer_csv):
         data = pd.read_csv(employee_salary_Advance_bankTransfer_csv, parse_dates=['Date'], dayfirst=True)
-        data['Date'] = pd.to_datetime(data['Date'],format='%d-%m-%Y', errors='coerce', dayfirst=True)
+        data['Date'] = pd.to_datetime(data['Date'],format='%d-%b-%y', errors='coerce', dayfirst=True)
         data = data.sort_values(by='Date', ascending=False)
-        data['Date'] = data['Date'].dt.strftime('%d-%m-%Y')
+        data['Date'] = data['Date'].dt.strftime('%d-%b-%y')
         display_data(data, "Employee Advance Bank Transfer")
     else:
         st.error(f"File {employee_salary_Advance_bankTransfer_csv} is missing! Please check the CSV file path.")
@@ -371,9 +358,9 @@ def employee_salary_tab():
         st.error("The data structure has changed or some columns are missing. Please check the CSV file.")
     else:
         employee_cash_withdrawn_data = employee_sa_cash_withdrawn[expected_columns].copy()
-        employee_cash_withdrawn_data['Date'] = pd.to_datetime(employee_cash_withdrawn_data['Date'], format='%d-%m-%Y', errors='coerce')
+        employee_cash_withdrawn_data['Date'] = pd.to_datetime(employee_cash_withdrawn_data['Date'], format='%d-%b-%y', errors='coerce')
         employee_cash_withdrawn_data = employee_cash_withdrawn_data.sort_values(by='Date', ascending=False)
-        employee_cash_withdrawn_data['Date'] = employee_cash_withdrawn_data['Date'].dt.strftime('%d-%m-%Y')
+        employee_cash_withdrawn_data['Date'] = employee_cash_withdrawn_data['Date'].dt.strftime('%d-%b-%y')
         display_data(employee_cash_withdrawn_data, "Employee Cash Advance")
         
     employee_Salary_data = update_salary_data()
@@ -389,8 +376,8 @@ def employee_salary_tab():
         st.error(f"An error occurred while sorting the data: {str(e)}")
         return
     
-    start_month = 'Aug-2024'
-    end_month = datetime.now().strftime('%b-%Y')
+    start_month = 'Aug-24'
+    end_month = datetime.now().strftime('%b-%y')
 
     adv_bank_transfer_df = pd.read_csv(employee_salary_Advance_bankTransfer_csv, parse_dates=['Date'], dayfirst=True)
     cash_withdrawn_df = employee_cash_withdrawn_data

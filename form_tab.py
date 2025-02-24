@@ -127,8 +127,8 @@ def form_tab():
 
     if submit_button:
         new_row = {
-            "Date": date_input.strftime('%d-%m-%Y'),  # Only use the date part (keep as string)
-            "Opening Cash": int(opening_cash),  # Assuming whole rupee values
+            "Date": date_input.strftime('%d-%b-%y'), 
+            "Opening Cash": int(opening_cash),
             "Expenses Shop": int(expenses_shop_total),
             "Denomination Total": int(denomination_total),
             "Total Cash": int(total_cash),
