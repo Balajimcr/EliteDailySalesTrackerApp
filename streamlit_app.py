@@ -6,9 +6,10 @@ from accounts_db_tab import accounts_db_tab
 from shop_purchase_tab import shop_purchase_tab
 from employee_details import employee_details_tab
 from user_authentication import is_logged_in, login
+from config import BRANCH_NAME
 
 def main_app():
-    st.sidebar.title("Elite Salon - Manachanallur")
+    st.sidebar.title(BRANCH_NAME)
     # Initialize session state for the current tab if it's not already set
     if 'current_tab' not in st.session_state:
         st.session_state['current_tab'] = "Login"

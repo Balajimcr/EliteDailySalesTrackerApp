@@ -1,9 +1,8 @@
 import pandas as pd
 from datetime import datetime
+from config import UserDirectoryPath,employee_names_def
 import hashlib
-import pandas as pd  # Make sure pandas is imported
-
-UserDirectoryPath = "Data/EliteSalonMcr/"
+import pandas as pd
 
 csv_file = UserDirectoryPath +"database_collection.csv"
 employee_csv = UserDirectoryPath +"Employee_data.csv"
@@ -18,7 +17,7 @@ def load_employee_names():
         employee_names = employee_data["Name"].tolist()
     except (FileNotFoundError, IndexError):
         st.error("Employee names file not found! Please ensure the file exists.")
-        employee_names = ["Kamal","Shakthivel","Employee 3","Employee 4"]
+        employee_names = employee_names_def
     return employee_names
 
 
@@ -60,6 +59,7 @@ def load_data():
         ])
         last_closing_cash = 0
     return data, last_closing_cash
+
 
 def save_data(data):
     data.to_csv(csv_file, index=False)

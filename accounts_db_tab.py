@@ -5,7 +5,7 @@ import datetime
 from ui_helpers import display_text
 from data_management import load_employee_names,UserDirectoryPath,credentials_path,csv_file
 from data_management import load_data, save_data # Assuming save_data is a function you will define to save data back to CSV
-
+from config import SHOP_NAME
 import base64
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -54,22 +54,18 @@ def sync_google_sheet_to_csv(sheet_name, csv_path):
 def sync_csv_to_google_sheet(csv_path, sheet_name):
     
     # Read the entire CSV file
-    df_local = pd.read_csv(csv_path)
-    
-    # Ensure 'Date' is in %d-%b-%y format
-    if 'Date' in df_local.columns:
-        df_local['Date'] = pd.to_datetime(df_local['Date'], errors='coerce').dt.strftime('%d-%b-%y')
-    
+    df_local = pd.read_csv(csv_path)      
+       
     # Get existing data from Google Sheet
     df_sheet = conn.read(worksheet=sheet_name)
-    df_sheet.columns = df_sheet.columns.astype(str)
-
-    # Ensure 'Date' in Google Sheet is also %d-%b-%y
-    if 'Date' in df_sheet.columns:
-        df_sheet['Date'] = pd.to_datetime(df_sheet['Date'], errors='coerce').dt.strftime('%d-%b-%y')
 
     # Use the columns from the local CSV as expected columns
     expected_columns = df_local.columns.tolist()
+
+    # Convert all column names in df_sheet to strings to prevent type mismatch
+    df_sheet.columns = df_sheet.columns.astype(str)
+
+    # Filter the Google Sheet DataFrame to retain only the expected columns
     df_sheet = df_sheet[expected_columns].loc[:, expected_columns].copy()
 
     # Align columns by selecting only common columns between the CSV and Google Sheet
@@ -117,7 +113,7 @@ def sync_google_sheets_to_all_csv_files():
         'employee_salary_data.csv': {'sheet_name': 'EmployeeSalaryData', 'unique_identifier': 'Month'}
     }
 
-    directory = os.path.join(UserDirectoryPath)  # Ensure correct directory path
+    directory = os.path.join(UserDirectoryPath)
 
     for csv_file, sheet_info in csv_files_and_sheets.items():
         csv_path = os.path.join(directory, csv_file)
@@ -126,20 +122,26 @@ def sync_google_sheets_to_all_csv_files():
 
         try:
             df_sheet = conn.read(worksheet=sheet_name)
-            # Standardize column names: remove spaces and convert to title case
             df_sheet.columns = df_sheet.columns.astype(str)
 
-            # Process numeric columns
             for col in df_sheet.columns:
                 if pd.api.types.is_numeric_dtype(df_sheet[col]):
                     df_sheet[col] = df_sheet[col].fillna(0).astype(int)
 
-            # Format the 'Date' column if it exists
+            # Format the 'Date' column if it exists and is a datetime-like column
             if 'Date' in df_sheet.columns:
                 try:
                     df_sheet['Date'] = pd.to_datetime(df_sheet['Date']).dt.strftime('%d-%b-%y')
                 except (ValueError, TypeError):
-                    print(f"Warning: 'Date' column in '{sheet_name}' is not in a recognized date format. Skipping date formatting.")            
+                    print(f"Warning: 'Date' column in '{sheet_name}' is not in a recognized date format. Skipping date formatting.")
+
+            # Format the 'Month' column if it exists and is a datetime-like column
+            if 'Month' in df_sheet.columns:
+                try:
+                    df_sheet['Date'] = pd.to_datetime(df_sheet['Date']).dt.strftime('%d-%b-%y')
+                except (ValueError, TypeError):
+                    print(f"Warning: 'Date' column in '{sheet_name}' is not in a recognized date format. Skipping date formatting.")
+
 
             df_sheet.to_csv(csv_path, index=False)
             print(f"Successfully replaced local CSV '{csv_file}' with data from Google Sheet '{sheet_name}'.")
@@ -290,7 +292,7 @@ def display_last_entry(data,index, employees):
 
     
 def accounts_db_tab():
-    st.title("Elite Salon Manachanallur")
+    st.title(SHOP_NAME)
 
     try:
         data, last_closing_cash = load_data()

@@ -1,13 +1,13 @@
-import streamlit as st
-from data_management import load_data, load_employee_names
-import pandas as pd
 import os
+import pandas as pd
 
 import datetime
 from datetime import date, datetime, timedelta
 from ui_helpers import displayhtml_data
 from data_management import csv_file, employee_csv, employee_salary_Advance_bankTransfer_csv,employee_salary_data_csv,employee_salary_csv
-
+from config import start_month
+import streamlit as st
+from data_management import load_data, load_employee_names
 
 def display_data(dataframe, title):
     """Display a dataframe with a title."""
@@ -33,14 +33,11 @@ def load_salary_data():
         st.error("Salary data file is missing. Please ensure it exists in the correct location.")
         return None
     try:
-        # Explicitly parse the 'Month' column as dates
-        salary_data = pd.read_csv(employee_salary_data_csv, parse_dates=['Month'])
-        # Ensure date format is correct
-        salary_data['Month'] = pd.to_datetime(salary_data['Month'], format='%b-%y')
-        return salary_data.sort_values('Month', ascending=False)
-    except FileNotFoundError:
-        st.error("Salary data file is missing. Please ensure it exists in the correct location.")
-        return None
+        salary_data = pd.read_csv(employee_salary_data_csv, parse_dates=['Month'], dayfirst=True, encoding='utf-8')
+        salary_data['Month'] = pd.to_datetime(salary_data['Month'], format='%d-%b-%y', errors='coerce')
+        # Format Month as DD-Mmm-YY for consistency
+        salary_data['Month'] = salary_data['Month'].dt.strftime('%d-%b-%y')
+        return salary_data.sort_values(by='Month', ascending=False)
     except Exception as e:
         st.error(f"An error occurred while loading the salary data: {str(e)}")
         return None
@@ -54,6 +51,7 @@ def update_salary_data():
     st.write("### Update Employee Salary")
 
     # Format 'Month' for display and use in selection
+    salary_data['Month'] = pd.to_datetime(salary_data['Month'])
     months = salary_data['Month'].dt.strftime('%b-%y').unique()
     selected_month = st.selectbox("Select Month", options=months)
 
@@ -190,10 +188,16 @@ def update_employee_salary_csv(Employee_Salary_data, csv_file_path):
 
     # Convert 'Month' back to string format 'Mmm-YY' for display and saving
     Employee_Salary_data['Month'] = Employee_Salary_data['Month_dt'].dt.strftime('%b-%y')    
-    
     # Drop the temporary datetime column
     Employee_Salary_data = Employee_Salary_data.drop(columns=['Month_dt'])
     
+    # Convert all numeric columns to integers
+    numeric_columns = ['Monthly Bank Transfers', 'Monthly Cash Withdrawn', 'Total Salary Advance', 
+                      'Total Sales', 'Salary', 'Balance', 'Balance Till date']
+    
+    for col in numeric_columns:
+        Employee_Salary_data[col] = Employee_Salary_data[col].round().astype(int)
+
     # Compute 'Total Sales' based on 'Salary' (Total Sales = Salary / 0.45) and convert to integer
     Employee_Salary_data['Total Sales'] = (Employee_Salary_data['Salary'] / 0.45).round().astype(int)
 
@@ -376,7 +380,6 @@ def employee_salary_tab():
         st.error(f"An error occurred while sorting the data: {str(e)}")
         return
     
-    start_month = 'Aug-24'
     end_month = datetime.now().strftime('%b-%y')
 
     adv_bank_transfer_df = pd.read_csv(employee_salary_Advance_bankTransfer_csv, parse_dates=['Date'], dayfirst=True)

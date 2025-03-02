@@ -4,14 +4,8 @@ import hashlib
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from data_management import UserDirectoryPath
 from accounts_db_tab import sync_google_sheets_to_all_csv_files
+from config import USER_DATA, SHOP_NAME
 
-# Simulated user database with hashed passwords
-USER_DATA = {
-    "balajimcr@gmail.com":"f20732a590b9312ee8282a5962cc5b90e4c1bbb31e5c537d51857c5a3fab5a41",
-    "elitesalonlalgudi@gmail.com":"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0",
-    "elitesalonmcr@gmail.com":"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0",
-    "Pin_No":"9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0",
-}
 # Check user session to determine if they're logged in
 def is_logged_in():
     ctx = get_script_run_ctx()
@@ -28,7 +22,7 @@ def set_logged_in(logged_in):
 
 # Login form that returns the login status
 def login():
-    st.header("Elite Salon Manachanallur")
+    st.header(SHOP_NAME)
     st.header("Login")
     username = st.text_input("Username", key="username")
     password = st.text_input("Password", type="password", key="password")
