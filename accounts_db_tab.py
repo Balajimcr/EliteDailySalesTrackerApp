@@ -212,7 +212,7 @@ def delete_row(data, index):
         st.error("Row index not found in the database.")
         return data
     
-def display_last_entry(data,index, employees):
+def display_last_entry(data, index, employees):
     """
     Display the most recent entry of the dataset in a two-column formatted table.
     
@@ -225,17 +225,14 @@ def display_last_entry(data,index, employees):
     """
     if not data.empty:
         # Get the first row of the DataFrame (most recent entry)
-        
         numeric_cols = [col for col in data.columns if col != 'Date']
 
-        # Attempt conversion to numeric (integers) with error handling
+        # Convert columns to numeric (int64) with error handling
         for col in numeric_cols:
             try:
-                data[col] = pd.to_numeric(data[col], errors='coerce', downcast="integer")
+                data[col] = pd.to_numeric(data[col], errors='coerce').fillna(0).astype('int64')
             except:
-                print(f"Warning: Error converting column {col} to numeric (integers).")
-        
-        data["Closing Cash"] = pd.to_numeric(data["Closing Cash"], errors='coerce', downcast="integer")
+                print(f"Warning: Error converting column {col} to numeric (int64).")
         
         top_entry = data.iloc[index]
         top_entry['Date'] = pd.to_datetime(top_entry['Date'], dayfirst=True).strftime('%d-%b-%y (%A)')
@@ -260,13 +257,13 @@ def display_last_entry(data,index, employees):
 
         col1_entries = [
             f"Denominations:",
-            f"₹500 x {top_entry['500']} = ₹{500*top_entry['500']}",
-            f"₹200 x {top_entry['200']} = ₹{200*top_entry['200']}",
-            f"₹100 x {top_entry['100']} = ₹{100*top_entry['100']}",
-            f"₹50  x {top_entry['50']}  = ₹{50*top_entry['50']}",
-            f"₹20  x {top_entry['20']}  = ₹{20*top_entry['20']}",
-            f"₹10  x {top_entry['10']}  = ₹{10*top_entry['10']}",
-            f"₹5   x {top_entry['5']}   = ₹{5*top_entry['5']}",
+            f"₹500 x {top_entry['500']} = ₹{500 * top_entry['500']}",
+            f"₹200 x {top_entry['200']} = ₹{200 * top_entry['200']}",
+            f"₹100 x {top_entry['100']} = ₹{100 * top_entry['100']}",
+            f"₹50  x {top_entry['50']}  = ₹{50 * top_entry['50']}",
+            f"₹20  x {top_entry['20']}  = ₹{20 * top_entry['20']}",
+            f"₹10  x {top_entry['10']}  = ₹{10 * top_entry['10']}",
+            f"₹5   x {top_entry['5']}   = ₹{5 * top_entry['5']}",
             f"Total: ₹{top_entry['Denomination Total']}",
             f"Cash Withdrawn: ₹{top_entry['Cash Withdrawn']}",
             f"Closing Cash: ₹{top_entry['Closing Cash']}",
@@ -284,7 +281,7 @@ def display_last_entry(data,index, employees):
                 
         Cash_diff = f"Cash Difference: ₹{top_entry['Cash Difference']}"
         text_color = "red" if top_entry['Cash Difference'] > 100 else "blue" if top_entry['Cash Difference'] > 0 else "green"
-        display_text(Cash_diff,color=text_color,font_size ="28px")
+        display_text(Cash_diff, color=text_color, font_size="28px")
         
     else:
         st.error("No data available to display.")
