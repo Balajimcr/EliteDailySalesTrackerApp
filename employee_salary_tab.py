@@ -46,40 +46,55 @@ def update_salary_data():
     salary_data = load_salary_data()
     if salary_data is None:
         st.error("Failed to load salary data. Please check the data source.")
-        return None  # Exit if the data couldn't be loaded
+        return None
     
     st.write("### Update Employee Salary")
 
-    # Format 'Month' for display and use in selection
+    # Fixed list of 4 employees
+    ACTIVE_EMPLOYEES = load_employee_names()  # Load employee names as a list
+    
+    # Filter salary data to only include active employees
+    salary_data = salary_data[salary_data['Employee Name'].isin(ACTIVE_EMPLOYEES)]
+    
+    # Get current month as default
+    current_month = datetime.now().strftime('%b-%y')
     salary_data['Month'] = pd.to_datetime(salary_data['Month'])
     months = salary_data['Month'].dt.strftime('%b-%y').unique()
-    selected_month = st.selectbox("Select Month", options=months)
-
-    # Convert selected month back to datetime for comparison
-    selected_month_datetime = pd.to_datetime(selected_month, format='%b-%y')
-
-    # Create a list to collect updated salary data
-    updates = []
     
+    # Ensure current month is in the list, add if not present
+    if current_month not in months:
+        months = list(months) + [current_month]
+    months.sort()  # Sort months chronologically
+    
+    # Set current month as default selection
+    default_index = months.index(current_month) if current_month in months else -1
+    selected_month = st.selectbox("Select Month", options=months, index=default_index)
+
+    # Convert selected month to datetime
+    selected_month_datetime = pd.to_datetime(selected_month, format='%b-%y')
     salary_data['Month'] = salary_data['Month'].dt.strftime('%b-%y')
 
-    for employee in salary_data['Employee Name'].unique():
+    updates = []
+    for employee in ACTIVE_EMPLOYEES:
         # Filter data for the selected month and employee
-        filtered_data = salary_data[(salary_data['Month'] == selected_month_datetime) & 
-                                    (salary_data['Employee Name'] == employee)]
+        filtered_data = salary_data[(salary_data['Month'] == selected_month) & 
+                                  (salary_data['Employee Name'] == employee)]
         
-        current_salary = filtered_data.iloc[0]['Salary'] if not filtered_data.empty else 0
+        current_salary = filtered_data['Salary'].iloc[0] if not filtered_data.empty else 0
 
-        # Use Streamlit columns to display employee name, current salary, and input for new salary
         col1, col2, col3 = st.columns(3)
         with col1:
             st.write(f"{employee}")
         with col2:
             st.write(f"{current_salary}")
         with col3:
-            new_salary = st.number_input(f"New Salary for {employee}", key=f"salary_{employee}", value=int(current_salary))
+            new_salary = st.number_input(
+                f"New Salary for {employee}", 
+                key=f"salary_{employee}_{selected_month}",  # Unique key with month
+                value=int(current_salary),
+                min_value=0
+            )
         
-        # Collect data for updates
         updates.append((employee, new_salary, filtered_data.index))
 
     if st.button("Update Salary"):
@@ -87,33 +102,34 @@ def update_salary_data():
         for employee, new_salary, idx in updates:
             if idx.empty:
                 new_entries.append({
-                    'Month': selected_month_datetime,
+                    'Month': selected_month_datetime.strftime('%d-%b-%y'),
                     'Employee Name': employee,
                     'Monthly Bank Transfers': 0,
                     'Monthly Cash Withdrawn': 0,
                     'Total Salary Advance': 0,
-                    'Total Sales': new_salary * 2,  # Assuming sales are double the salary
+                    'Total Sales': new_salary * 2,
                     'Salary': new_salary,
                     'Balance': 0,
                     'Balance Till date': 0
                 })
             else:
                 salary_data.loc[idx, 'Salary'] = new_salary
-                salary_data.loc[idx, 'Total Sales'] = new_salary * 2  # Assuming sales are double the salary
+                salary_data.loc[idx, 'Total Sales'] = new_salary * 2
 
         if new_entries:
             new_entries_df = pd.DataFrame(new_entries)
             salary_data = pd.concat([salary_data, new_entries_df], ignore_index=True)
 
         try:
-            salary_data.to_csv(employee_salary_data_csv, index=False)
+            salary_data.sort_values('Month').to_csv(employee_salary_data_csv, index=False)
             st.success("Salary data updated successfully.")
         except Exception as e:
             st.error(f"An error occurred while saving the salary data: {str(e)}")
-            return None  # Return None if saving fails
-    
-    display_data(salary_data, "Employee Salary")
-    
+            return None
+        
+        # Display only selected columns for active employees
+        display_columns = ['Month', 'Employee Name', 'Total Sales', 'Salary']
+        display_data(salary_data[salary_data['Employee Name'].isin(ACTIVE_EMPLOYEES)][display_columns], "Employee Salary")
     return salary_data
 
 
